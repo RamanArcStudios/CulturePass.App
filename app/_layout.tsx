@@ -1,24 +1,119 @@
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { Stack } from 'expo-router';
-import { StatusBar } from 'expo-status-bar';
-import 'react-native-reanimated';
+import { QueryClientProvider } from "@tanstack/react-query";
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import React, { useEffect } from "react";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { KeyboardProvider } from "react-native-keyboard-controller";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { queryClient } from "@/lib/query-client";
+import { AuthProvider } from "@/lib/auth";
+import {
+  useFonts,
+  Poppins_400Regular,
+  Poppins_500Medium,
+  Poppins_600SemiBold,
+  Poppins_700Bold,
+} from "@expo-google-fonts/poppins";
 
-import { useColorScheme } from '@/hooks/use-color-scheme';
+SplashScreen.preventAutoHideAsync();
 
-export const unstable_settings = {
-  anchor: '(tabs)',
-};
+function RootLayoutNav() {
+  return (
+    <Stack screenOptions={{ headerBackTitle: "Back" }}>
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen
+        name="event/[id]"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="community/[id]"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="artist/[id]"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="business/[id]"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="allevents"
+        options={{
+          title: "All Events",
+          headerTintColor: "#E2725B",
+        }}
+      />
+      <Stack.Screen
+        name="submit"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="auth"
+        options={{
+          presentation: "modal",
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen
+        name="settings/notifications"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="settings/privacy"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="settings/help"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="settings/about"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="admin"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="map"
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="venue/[id]"
+        options={{ headerShown: false }}
+      />
+    </Stack>
+  );
+}
 
 export default function RootLayout() {
-  const colorScheme = useColorScheme();
+  const [fontsLoaded] = useFonts({
+    Poppins_400Regular,
+    Poppins_500Medium,
+    Poppins_600SemiBold,
+    Poppins_700Bold,
+  });
+
+  useEffect(() => {
+    if (fontsLoaded) {
+      SplashScreen.hideAsync();
+    }
+  }, [fontsLoaded]);
+
+  if (!fontsLoaded) return null;
 
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
-      </Stack>
-      <StatusBar style="auto" />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <GestureHandlerRootView>
+            <KeyboardProvider>
+              <RootLayoutNav />
+            </KeyboardProvider>
+          </GestureHandlerRootView>
+        </AuthProvider>
+      </QueryClientProvider>
+    </ErrorBoundary>
   );
 }

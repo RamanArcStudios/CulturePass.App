@@ -1,0 +1,470 @@
+import { eq, desc, and, or, ilike, sql, gte } from "drizzle-orm";
+import { db } from "./db";
+import {
+  users,
+  events,
+  venues,
+  organisations,
+  businesses,
+  artists,
+  perks,
+  orders,
+  memberships,
+  passwordResetTokens,
+  cpids,
+  referrals,
+  type User,
+  type InsertUser,
+  type Event,
+  type InsertEvent,
+  type Venue,
+  type InsertVenue,
+  type Organisation,
+  type InsertOrganisation,
+  type Business,
+  type InsertBusiness,
+  type Artist,
+  type InsertArtist,
+  type Perk,
+  type InsertPerk,
+  type Order,
+  type InsertOrder,
+  type Membership,
+  type InsertMembership,
+  type Referral,
+  type InsertReferral,
+} from "@shared/schema";
+
+function generateCPID(prefix: string): string {
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let result = "";
+  for (let i = 0; i < 6; i++) {
+    result += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `${prefix}${result}`;
+}
+
+async function registerCPID(cpid: string, entityType: string, entityId: string) {
+  await db.insert(cpids).values({ cpid, entityType, entityId });
+}
+
+export const storage = {
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  },
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  },
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user;
+  },
+
+  async getUserByReplitId(replitId: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.replitId, replitId));
+    return user;
+  },
+
+  async upsertReplitUser(replitId: string, username: string, profileImageUrl?: string): Promise<User> {
+    const existing = await this.getUserByReplitId(replitId);
+    if (existing) {
+      const updates: Partial<User> = {};
+      if (profileImageUrl) updates.profileImageUrl = profileImageUrl;
+      if (Object.keys(updates).length > 0) {
+        const [updated] = await db.update(users).set(updates).where(eq(users.id, existing.id)).returning();
+        return updated;
+      }
+      return existing;
+    }
+    let finalUsername = username;
+    const taken = await this.getUserByUsername(username);
+    if (taken) {
+      finalUsername = `${username}_${Date.now().toString(36)}`;
+    }
+    const cpid = generateCPID("CP-U-");
+    const [user] = await db.insert(users).values({
+      username: finalUsername,
+      password: `replit_auth_${Date.now()}`,
+      replitId: replitId,
+      profileImageUrl: profileImageUrl || "",
+      name: username,
+    }).returning();
+    await db.update(users).set({ cpid }).where(eq(users.id, user.id));
+    await registerCPID(cpid, "user", user.id);
+    return { ...user, cpid };
+  },
+
+  async createUser(data: InsertUser): Promise<User> {
+    const cpid = generateCPID("CP-U-");
+    const [user] = await db.insert(users).values({ ...data, cpid }).returning();
+    await registerCPID(cpid, "user", user.id);
+    return user;
+  },
+
+  async updateUser(id: string, data: Partial<User>): Promise<User | undefined> {
+    const [user] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return user;
+  },
+
+  async getAllUsers(): Promise<User[]> {
+    return db.select().from(users).orderBy(desc(users.createdAt));
+  },
+
+  async getEvents(opts?: { category?: string; city?: string; featured?: boolean; search?: string }): Promise<Event[]> {
+    const conditions: any[] = [eq(events.published, true)];
+    if (opts?.category) conditions.push(eq(events.category, opts.category));
+    if (opts?.city) conditions.push(eq(events.city, opts.city));
+    if (opts?.featured) conditions.push(eq(events.featured, true));
+    if (opts?.search) {
+      const searchTerm = `%${opts.search}%`;
+      conditions.push(or(ilike(events.title, searchTerm), ilike(events.city, searchTerm)));
+    }
+    return db.select().from(events).where(and(...conditions)).orderBy(events.date);
+  },
+
+  async getEventById(id: string): Promise<Event | undefined> {
+    const [event] = await db.select().from(events).where(eq(events.id, id));
+    return event;
+  },
+
+  async getFeaturedEvents(): Promise<Event[]> {
+    return db.select().from(events).where(and(eq(events.published, true), eq(events.featured, true))).orderBy(events.date);
+  },
+
+  async getTrendingEvents(): Promise<Event[]> {
+    return db.select().from(events).where(and(eq(events.published, true), eq(events.trending, true))).orderBy(events.date);
+  },
+
+  async getEventsByDate(date: string): Promise<Event[]> {
+    return db.select().from(events).where(and(eq(events.published, true), eq(events.date, date)));
+  },
+
+  async getEventDates(): Promise<string[]> {
+    const result = await db.selectDistinct({ date: events.date }).from(events).where(eq(events.published, true));
+    return result.map(r => r.date);
+  },
+
+  async createEvent(data: InsertEvent): Promise<Event> {
+    const cpid = generateCPID("CP-E-");
+    const [event] = await db.insert(events).values({ ...data, cpid }).returning();
+    await registerCPID(cpid, "event", event.id);
+    return event;
+  },
+
+  async updateEvent(id: string, data: Partial<Event>): Promise<Event | undefined> {
+    const [event] = await db.update(events).set(data).where(eq(events.id, id)).returning();
+    return event;
+  },
+
+  async deleteEvent(id: string): Promise<boolean> {
+    const result = await db.delete(events).where(eq(events.id, id)).returning();
+    return result.length > 0;
+  },
+
+  async getEventsWithCoords(): Promise<Event[]> {
+    return db.select().from(events).where(
+      and(eq(events.published, true), sql`${events.lat} IS NOT NULL AND ${events.lng} IS NOT NULL`)
+    ).orderBy(events.date);
+  },
+
+  async getEventsByVenue(venueId: string): Promise<Event[]> {
+    return db.select().from(events).where(
+      and(eq(events.published, true), eq(events.venueId, venueId))
+    ).orderBy(events.date);
+  },
+
+  // Venues
+  async getVenues(): Promise<Venue[]> {
+    return db.select().from(venues).where(eq(venues.approved, true)).orderBy(venues.name);
+  },
+
+  async getVenueById(id: string): Promise<Venue | undefined> {
+    const [venue] = await db.select().from(venues).where(eq(venues.id, id));
+    return venue;
+  },
+
+  async createVenue(data: InsertVenue): Promise<Venue> {
+    const cpid = generateCPID("CP-V-");
+    const [venue] = await db.insert(venues).values({ ...data, cpid }).returning();
+    await registerCPID(cpid, "venue", venue.id);
+    return venue;
+  },
+
+  async updateVenue(id: string, data: Partial<Venue>): Promise<Venue | undefined> {
+    const [venue] = await db.update(venues).set(data).where(eq(venues.id, id)).returning();
+    return venue;
+  },
+
+  async deleteVenue(id: string): Promise<boolean> {
+    const result = await db.delete(venues).where(eq(venues.id, id)).returning();
+    return result.length > 0;
+  },
+
+  async getAllVenues(): Promise<Venue[]> {
+    return db.select().from(venues).orderBy(desc(venues.createdAt));
+  },
+
+  // Organisations
+  async getOrganisations(): Promise<Organisation[]> {
+    return db.select().from(organisations).where(eq(organisations.status, "active")).orderBy(organisations.name);
+  },
+
+  async getOrganisationById(id: string): Promise<Organisation | undefined> {
+    const [org] = await db.select().from(organisations).where(eq(organisations.id, id));
+    return org;
+  },
+
+  async createOrganisation(data: InsertOrganisation): Promise<Organisation> {
+    const cpid = generateCPID("CP-ORG-");
+    const [org] = await db.insert(organisations).values({ ...data, cpid }).returning();
+    await registerCPID(cpid, "organisation", org.id);
+    return org;
+  },
+
+  async updateOrganisation(id: string, data: Partial<Organisation>): Promise<Organisation | undefined> {
+    const [org] = await db.update(organisations).set(data).where(eq(organisations.id, id)).returning();
+    return org;
+  },
+
+  async deleteOrganisation(id: string): Promise<boolean> {
+    const result = await db.delete(organisations).where(eq(organisations.id, id)).returning();
+    return result.length > 0;
+  },
+
+  // Businesses
+  async getBusinesses(): Promise<Business[]> {
+    return db.select().from(businesses).where(eq(businesses.status, "active")).orderBy(businesses.name);
+  },
+
+  async getBusinessById(id: string): Promise<Business | undefined> {
+    const [biz] = await db.select().from(businesses).where(eq(businesses.id, id));
+    return biz;
+  },
+
+  async createBusiness(data: InsertBusiness): Promise<Business> {
+    const cpid = generateCPID("CP-B-");
+    const [biz] = await db.insert(businesses).values({ ...data, cpid }).returning();
+    await registerCPID(cpid, "business", biz.id);
+    return biz;
+  },
+
+  async updateBusiness(id: string, data: Partial<Business>): Promise<Business | undefined> {
+    const [biz] = await db.update(businesses).set(data).where(eq(businesses.id, id)).returning();
+    return biz;
+  },
+
+  async deleteBusiness(id: string): Promise<boolean> {
+    const result = await db.delete(businesses).where(eq(businesses.id, id)).returning();
+    return result.length > 0;
+  },
+
+  async getBusinessesWithCoords(): Promise<Business[]> {
+    return db.select().from(businesses).where(
+      and(eq(businesses.status, "active"), sql`${businesses.lat} IS NOT NULL AND ${businesses.lng} IS NOT NULL`)
+    ).orderBy(businesses.name);
+  },
+
+  // Artists
+  async getArtists(): Promise<Artist[]> {
+    return db.select().from(artists).where(eq(artists.status, "active")).orderBy(artists.name);
+  },
+
+  async getArtistById(id: string): Promise<Artist | undefined> {
+    const [artist] = await db.select().from(artists).where(eq(artists.id, id));
+    return artist;
+  },
+
+  async getFeaturedArtists(): Promise<Artist[]> {
+    return db.select().from(artists).where(and(eq(artists.status, "active"), eq(artists.featured, true)));
+  },
+
+  async createArtist(data: InsertArtist): Promise<Artist> {
+    const cpid = generateCPID("CP-AR-");
+    const [artist] = await db.insert(artists).values({ ...data, cpid }).returning();
+    await registerCPID(cpid, "artist", artist.id);
+    return artist;
+  },
+
+  async updateArtist(id: string, data: Partial<Artist>): Promise<Artist | undefined> {
+    const [artist] = await db.update(artists).set(data).where(eq(artists.id, id)).returning();
+    return artist;
+  },
+
+  async deleteArtist(id: string): Promise<boolean> {
+    const result = await db.delete(artists).where(eq(artists.id, id)).returning();
+    return result.length > 0;
+  },
+
+  async getEventsByArtist(artistId: string): Promise<Event[]> {
+    return db.select().from(events).where(and(eq(events.published, true), eq(events.artistId, artistId))).orderBy(events.date);
+  },
+
+  // Perks
+  async getPerks(): Promise<Perk[]> {
+    return db.select().from(perks).where(eq(perks.status, "active"));
+  },
+
+  async getPerkById(id: string): Promise<Perk | undefined> {
+    const [perk] = await db.select().from(perks).where(eq(perks.id, id));
+    return perk;
+  },
+
+  async createPerk(data: InsertPerk): Promise<Perk> {
+    const [perk] = await db.insert(perks).values(data).returning();
+    return perk;
+  },
+
+  async updatePerk(id: string, data: Partial<Perk>): Promise<Perk | undefined> {
+    const [perk] = await db.update(perks).set(data).where(eq(perks.id, id)).returning();
+    return perk;
+  },
+
+  async deletePerk(id: string): Promise<boolean> {
+    const result = await db.delete(perks).where(eq(perks.id, id)).returning();
+    return result.length > 0;
+  },
+
+  // Orders
+  async createOrder(data: InsertOrder): Promise<Order> {
+    const [order] = await db.insert(orders).values(data).returning();
+    if (data.eventId) {
+      await db.update(events).set({
+        ticketsSold: sql`${events.ticketsSold} + ${data.quantity || 1}`,
+      }).where(eq(events.id, data.eventId));
+    }
+    return order;
+  },
+
+  async getOrdersByUser(userId: string): Promise<Order[]> {
+    return db.select().from(orders).where(eq(orders.userId, userId)).orderBy(desc(orders.createdAt));
+  },
+
+  async getOrderById(id: string): Promise<Order | undefined> {
+    const [order] = await db.select().from(orders).where(eq(orders.id, id));
+    return order;
+  },
+
+  async updateOrder(id: string, data: Partial<Order>): Promise<Order | undefined> {
+    const [order] = await db.update(orders).set(data).where(eq(orders.id, id)).returning();
+    return order;
+  },
+
+  // Memberships
+  async joinOrganisation(data: InsertMembership): Promise<Membership> {
+    const [membership] = await db.insert(memberships).values(data).returning();
+    await db.update(organisations).set({
+      memberCount: sql`${organisations.memberCount} + 1`,
+    }).where(eq(organisations.id, data.orgId));
+    return membership;
+  },
+
+  async getUserMemberships(userId: string): Promise<Membership[]> {
+    return db.select().from(memberships).where(eq(memberships.userId, userId));
+  },
+
+  async getOrgMembers(orgId: string): Promise<Membership[]> {
+    return db.select().from(memberships).where(eq(memberships.orgId, orgId));
+  },
+
+  // Password Reset Tokens
+  async createPasswordResetToken(userId: string, token: string, expiresAt: Date) {
+    const [result] = await db.insert(passwordResetTokens).values({
+      userId,
+      token,
+      expiresAt,
+    }).returning();
+    return result;
+  },
+
+  async getPasswordResetToken(token: string) {
+    const [result] = await db.select().from(passwordResetTokens).where(
+      and(
+        eq(passwordResetTokens.token, token),
+        eq(passwordResetTokens.used, false),
+        gte(passwordResetTokens.expiresAt, new Date())
+      )
+    );
+    return result;
+  },
+
+  async markTokenUsed(id: string) {
+    await db.update(passwordResetTokens).set({ used: true }).where(eq(passwordResetTokens.id, id));
+  },
+
+  // Admin helpers
+  async getAllOrganisations(): Promise<Organisation[]> {
+    return db.select().from(organisations).orderBy(desc(organisations.createdAt));
+  },
+
+  async getAllBusinesses(): Promise<Business[]> {
+    return db.select().from(businesses).orderBy(desc(businesses.createdAt));
+  },
+
+  async getAllArtists(): Promise<Artist[]> {
+    return db.select().from(artists).orderBy(desc(artists.createdAt));
+  },
+
+  async getAllEvents(): Promise<Event[]> {
+    return db.select().from(events).orderBy(desc(events.createdAt));
+  },
+
+  async getAllOrders(): Promise<Order[]> {
+    return db.select().from(orders).orderBy(desc(orders.createdAt));
+  },
+
+  async getPendingOrganisations(): Promise<Organisation[]> {
+    return db.select().from(organisations).where(eq(organisations.status, "pending")).orderBy(desc(organisations.createdAt));
+  },
+
+  async getPendingBusinesses(): Promise<Business[]> {
+    return db.select().from(businesses).where(eq(businesses.status, "pending")).orderBy(desc(businesses.createdAt));
+  },
+
+  async getPendingArtists(): Promise<Artist[]> {
+    return db.select().from(artists).where(eq(artists.status, "pending")).orderBy(desc(artists.createdAt));
+  },
+
+  // CPID Lookup
+  async lookupCPID(cpid: string) {
+    const [result] = await db.select().from(cpids).where(eq(cpids.cpid, cpid));
+    return result;
+  },
+
+  // Referrals
+  async getUserByReferralCode(code: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.referralCode, code));
+    return user;
+  },
+
+  async createReferral(data: InsertReferral): Promise<Referral> {
+    const [referral] = await db.insert(referrals).values(data).returning();
+    return referral;
+  },
+
+  async getReferralsByReferrer(referrerId: string): Promise<Referral[]> {
+    return db.select().from(referrals).where(eq(referrals.referrerId, referrerId)).orderBy(desc(referrals.createdAt));
+  },
+
+  async getReferralCount(referrerId: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)` }).from(referrals).where(eq(referrals.referrerId, referrerId));
+    return Number(result[0]?.count || 0);
+  },
+
+  // Map data - all points for map display
+  async getMapData() {
+    const [evts, vens, bizs] = await Promise.all([
+      db.select().from(events).where(
+        and(eq(events.published, true), sql`${events.lat} IS NOT NULL`)
+      ),
+      db.select().from(venues).where(eq(venues.approved, true)),
+      db.select().from(businesses).where(
+        and(eq(businesses.status, "active"), sql`${businesses.lat} IS NOT NULL`)
+      ),
+    ]);
+    return { events: evts, venues: vens, businesses: bizs };
+  },
+};

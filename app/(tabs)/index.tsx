@@ -1,98 +1,425 @@
-import { Image } from 'expo-image';
-import { Platform, StyleSheet } from 'react-native';
+import React, { useState, useCallback, useMemo } from "react";
+import {
+  View,
+  Text,
+  ScrollView,
+  FlatList,
+  Pressable,
+  TextInput,
+  StyleSheet,
+  Platform,
+  RefreshControl,
+  ActivityIndicator,
+  Alert,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import { router } from "expo-router";
+import * as Haptics from "expo-haptics";
+import { useQuery } from "@tanstack/react-query";
+import Colors from "@/constants/colors";
+import EventCard from "@/components/EventCard";
+import CategoryFilter from "@/components/CategoryFilter";
+import SectionHeader from "@/components/SectionHeader";
+import CommunityCard from "@/components/CommunityCard";
+import ArtistCard from "@/components/ArtistCard";
+import {
+  type EventCategory,
+  type Event,
+  type Organisation,
+  type Artist,
+} from "@/lib/data";
+import { useAuth } from "@/lib/auth";
+import { apiRequest, queryClient } from "@/lib/query-client";
+import { useDebounce } from "@/lib/use-debounce";
 
-import { HelloWave } from '@/components/hello-wave';
-import ParallaxScrollView from '@/components/parallax-scroll-view';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { Link } from 'expo-router';
+export default function DiscoverScreen() {
+  const insets = useSafeAreaInsets();
+  const { user, isAuthenticated } = useAuth();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<EventCategory | null>(
+    null
+  );
+  const [refreshing, setRefreshing] = useState(false);
+  const debouncedSearch = useDebounce(searchQuery, 300);
 
-export default function HomeScreen() {
+  const queryParams = new URLSearchParams();
+  if (selectedCategory) queryParams.set("category", selectedCategory);
+  if (debouncedSearch) queryParams.set("search", debouncedSearch);
+
+  const { data: filteredEvents = [], isLoading: loadingEvents } = useQuery<Event[]>(
+    {
+      queryKey: [`/api/events?${queryParams.toString()}`],
+    }
+  );
+
+  const showFilteredResults = !!(debouncedSearch || selectedCategory);
+
+  const { data: featuredEvents = [] } = useQuery<Event[]>({
+    queryKey: ["/api/events/featured"],
+    enabled: !showFilteredResults,
+  });
+
+  const { data: trendingEvents = [] } = useQuery<Event[]>({
+    queryKey: ["/api/events/trending"],
+    enabled: !showFilteredResults,
+  });
+
+  const { data: allEvents = [] } = useQuery<Event[]>({
+    queryKey: ["/api/events"],
+    enabled: !showFilteredResults,
+  });
+
+  const { data: allOrganisations = [] } = useQuery<Organisation[]>({
+    queryKey: ["/api/organisations"],
+    enabled: !showFilteredResults,
+  });
+
+  const { data: featuredArtists = [] } = useQuery<Artist[]>({
+    queryKey: ["/api/artists/featured"],
+    enabled: !showFilteredResults,
+  });
+
+  const organisations = useMemo(() => allOrganisations.slice(0, 5), [allOrganisations]);
+
+  const savedEventIds: string[] = user?.savedEvents ?? [];
+
+  const handleSave = useCallback(
+    async (id: string) => {
+      if (!isAuthenticated) {
+        router.push("/auth");
+        return;
+      }
+      if (Platform.OS !== "web")
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      try {
+        await apiRequest("POST", "/api/users/save-event", { eventId: id });
+        queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
+      } catch (err: any) {
+        Alert.alert("Error", "Failed to save event");
+      }
+    },
+    [isAuthenticated]
+  );
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    queryClient.invalidateQueries().then(() => {
+      setRefreshing(false);
+    });
+  }, []);
+
+  const webTopInset = Platform.OS === "web" ? 67 : 0;
+
   return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12',
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <Link href="/modal">
-          <Link.Trigger>
-            <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-          </Link.Trigger>
-          <Link.Preview />
-          <Link.Menu>
-            <Link.MenuAction title="Action" icon="cube" onPress={() => alert('Action pressed')} />
-            <Link.MenuAction
-              title="Share"
-              icon="square.and.arrow.up"
-              onPress={() => alert('Share pressed')}
+    <View style={styles.container}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ paddingBottom: 100 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={Colors.light.primary}
+          />
+        }
+      >
+        <LinearGradient
+          colors={["#E2725B", "#D4A017"]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={[
+            styles.headerGradient,
+            { paddingTop: insets.top + webTopInset + 16 },
+          ]}
+        >
+          <View style={styles.headerContent}>
+            <View>
+              <Text style={styles.greeting}>Welcome to CulturePass!</Text>
+              <Text style={styles.subtitle}>
+                Your guide to the Malayalee community
+              </Text>
+            </View>
+            <Pressable
+              onPress={() => {
+                if (Platform.OS !== "web")
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+              style={styles.notifBtn}
+            >
+              <Ionicons name="notifications-outline" size={22} color="#fff" />
+            </Pressable>
+          </View>
+          <View style={styles.searchContainer}>
+            <Ionicons
+              name="search"
+              size={18}
+              color={Colors.light.textTertiary}
             />
-            <Link.Menu title="More" icon="ellipsis">
-              <Link.MenuAction
-                title="Delete"
-                icon="trash"
-                destructive
-                onPress={() => alert('Delete pressed')}
-              />
-            </Link.Menu>
-          </Link.Menu>
-        </Link>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search events, cities..."
+              placeholderTextColor={Colors.light.textTertiary}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {!!searchQuery && (
+              <Pressable onPress={() => setSearchQuery("")}>
+                <Ionicons
+                  name="close-circle"
+                  size={18}
+                  color={Colors.light.textTertiary}
+                />
+              </Pressable>
+            )}
+          </View>
+        </LinearGradient>
 
-        <ThemedText>
-          {`Tap the Explore tab to learn more about what's included in this starter app.`}
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          {`When you're ready, run `}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
+        <View style={styles.categorySection}>
+          <CategoryFilter
+            selected={selectedCategory}
+            onSelect={setSelectedCategory}
+          />
+        </View>
+
+        {loadingEvents && showFilteredResults ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={Colors.light.primary} />
+          </View>
+        ) : showFilteredResults ? (
+          <View style={styles.filteredSection}>
+            <Text style={styles.resultsText}>
+              {filteredEvents.length} event
+              {filteredEvents.length !== 1 ? "s" : ""} found
+            </Text>
+            {filteredEvents.map((event) => (
+              <EventCard
+                key={event.id}
+                event={event}
+                variant="list"
+                onSave={handleSave}
+                isSaved={savedEventIds.includes(event.id)}
+              />
+            ))}
+            {filteredEvents.length === 0 && (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="search"
+                  size={48}
+                  color={Colors.light.textTertiary}
+                />
+                <Text style={styles.emptyTitle}>No events found</Text>
+                <Text style={styles.emptyText}>
+                  Try a different search or category
+                </Text>
+              </View>
+            )}
+          </View>
+        ) : (
+          <>
+            <SectionHeader title="Featured Events" />
+            <FlatList
+              data={featuredEvents}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+              renderItem={({ item }) => (
+                <EventCard
+                  event={item}
+                  variant="featured"
+                  onSave={handleSave}
+                  isSaved={savedEventIds.includes(item.id)}
+                />
+              )}
+              scrollEnabled={featuredEvents.length > 0}
+            />
+
+            <SectionHeader
+              title="Trending Now"
+              onSeeAll={() => router.push("/allevents")}
+            />
+            <FlatList
+              data={trendingEvents}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+              renderItem={({ item }) => (
+                <EventCard event={item} variant="compact" />
+              )}
+              scrollEnabled={trendingEvents.length > 0}
+            />
+
+            <SectionHeader title="Communities" />
+            <FlatList
+              data={organisations}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+              renderItem={({ item }) => (
+                <CommunityCard org={item} variant="card" />
+              )}
+              scrollEnabled={organisations.length > 0}
+            />
+
+            <SectionHeader title="Featured Artists" />
+            <FlatList
+              data={featuredArtists}
+              keyExtractor={(item) => item.id}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.horizontalList}
+              renderItem={({ item }) => (
+                <ArtistCard artist={item} variant="card" />
+              )}
+              scrollEnabled={featuredArtists.length > 0}
+            />
+
+            <SectionHeader
+              title="Upcoming Events"
+              onSeeAll={() => router.push("/allevents")}
+            />
+            <View style={styles.upcomingList}>
+              {allEvents.slice(0, 4).map((event) => (
+                <EventCard
+                  key={event.id}
+                  event={event}
+                  variant="list"
+                  onSave={handleSave}
+                  isSaved={savedEventIds.includes(event.id)}
+                />
+              ))}
+            </View>
+          </>
+        )}
+      </ScrollView>
+
+      <Pressable
+        style={styles.mapFab}
+        onPress={() => {
+          if (Platform.OS !== "web")
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+          router.push("/map");
+        }}
+        testID="map-fab-button"
+      >
+        <Ionicons name="map" size={22} color="#fff" />
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  container: {
+    flex: 1,
+    backgroundColor: Colors.light.background,
+  },
+  headerGradient: {
+    paddingHorizontal: 20,
+    paddingBottom: 24,
+    borderBottomLeftRadius: 28,
+    borderBottomRightRadius: 28,
+  },
+  headerContent: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 16,
+  },
+  greeting: {
+    fontSize: 28,
+    fontFamily: "Poppins_700Bold",
+    color: "#fff",
+  },
+  subtitle: {
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    color: "rgba(255,255,255,0.8)",
+    marginTop: 2,
+  },
+  notifBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
     gap: 8,
   },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.light.text,
+    padding: 0,
   },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
+  categorySection: {
+    marginTop: 16,
+  },
+  horizontalList: {
+    paddingHorizontal: 20,
+  },
+  filteredSection: {
+    paddingHorizontal: 20,
+    marginTop: 8,
+  },
+  resultsText: {
+    fontSize: 13,
+    fontFamily: "Poppins_500Medium",
+    color: Colors.light.textSecondary,
+    marginBottom: 12,
+  },
+  upcomingList: {
+    paddingHorizontal: 20,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: 48,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingVertical: 48,
+    gap: 8,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontFamily: "Poppins_600SemiBold",
+    color: Colors.light.text,
+  },
+  emptyText: {
+    fontSize: 14,
+    fontFamily: "Poppins_400Regular",
+    color: Colors.light.textSecondary,
+  },
+  mapFab: {
+    position: "absolute",
+    right: 20,
+    bottom: Platform.OS === "web" ? 100 : 90,
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: Colors.light.secondary,
+    justifyContent: "center" as const,
+    alignItems: "center" as const,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 6,
+    zIndex: 100,
   },
 });
