@@ -34,7 +34,7 @@ export default function BusinessCard({ business }: BusinessCardProps) {
         { opacity: pressed ? 0.9 : 1 },
       ]}
     >
-      <Image source={{ uri: business.imageUrl }} style={styles.image} contentFit="cover" transition={200} />
+      <Image source={{ uri: business.imageUrl ?? undefined }} style={styles.image} contentFit="cover" transition={200} />
       <View style={styles.content}>
         <View style={styles.catBadge}>
           <Text style={styles.catText}>{business.category}</Text>
@@ -45,7 +45,7 @@ export default function BusinessCard({ business }: BusinessCardProps) {
           <Text style={styles.location}>{business.city}, {business.state}</Text>
         </View>
         <View style={styles.ratingRow}>
-          {renderStars(business.rating)}
+          {renderStars(business.rating ?? 0)}
           <Text style={styles.ratingText}>{business.rating}</Text>
         </View>
       </View>

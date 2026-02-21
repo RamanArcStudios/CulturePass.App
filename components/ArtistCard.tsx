@@ -28,7 +28,7 @@ export default function ArtistCard({ artist, variant = "card" }: ArtistCardProps
           { opacity: pressed ? 0.9 : 1 },
         ]}
       >
-        <Image source={{ uri: artist.imageUrl }} style={styles.listImage} contentFit="cover" transition={200} />
+        <Image source={{ uri: artist.imageUrl ?? undefined }} style={styles.listImage} contentFit="cover" transition={200} />
         <View style={styles.listContent}>
           <Text style={styles.listName}>{artist.name}</Text>
           <Text style={styles.listGenre}>{artist.genre}</Text>
@@ -55,7 +55,7 @@ export default function ArtistCard({ artist, variant = "card" }: ArtistCardProps
         { transform: [{ scale: pressed ? 0.97 : 1 }] },
       ]}
     >
-      <Image source={{ uri: artist.imageUrl }} style={styles.cardImage} contentFit="cover" transition={200} />
+      <Image source={{ uri: artist.imageUrl ?? undefined }} style={styles.cardImage} contentFit="cover" transition={200} />
       <LinearGradient
         colors={["transparent", "rgba(0,0,0,0.75)"]}
         style={styles.gradient}

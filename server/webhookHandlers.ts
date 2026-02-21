@@ -1,4 +1,4 @@
-import { getStripeSync } from './stripeClient';
+import { getStripeClient } from './stripeClient';
 
 export class WebhookHandlers {
   static async processWebhook(payload: Buffer, signature: string): Promise<void> {
@@ -11,7 +11,13 @@ export class WebhookHandlers {
       );
     }
 
-    const sync = await getStripeSync();
-    await sync.processWebhook(payload, signature);
+    const stripe = getStripeClient();
+    const endpointSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!endpointSecret) {
+      throw new Error('STRIPE_WEBHOOK_SECRET environment variable not set');
+    }
+    const event = stripe.webhooks.constructEvent(payload, signature, endpointSecret);
+    // Event is constructed and validated; callers can extend this handler to process specific event types
+    void event;
   }
 }
