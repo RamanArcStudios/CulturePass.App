@@ -39,8 +39,8 @@ export default function EventCard({ event, variant = "compact", onSave, isSaved 
   };
 
   const categoryColor = CATEGORY_COLORS[event.category] || Colors.light.primary;
-  const spotsLeft = event.ticketsAvailable - event.ticketsSold;
-  const almostSoldOut = spotsLeft < 20;
+  const spotsLeft = (event.ticketsAvailable ?? 0) - (event.ticketsSold ?? 0);
+  const almostSoldOut = spotsLeft > 0 && spotsLeft < 20;
 
   if (variant === "featured") {
     return (
@@ -52,7 +52,7 @@ export default function EventCard({ event, variant = "compact", onSave, isSaved 
         ]}
       >
         <Image
-          source={{ uri: event.imageUrl }}
+          source={{ uri: event.imageUrl ?? undefined }}
           style={styles.featuredImage}
           contentFit="cover"
           transition={300}
@@ -113,7 +113,7 @@ export default function EventCard({ event, variant = "compact", onSave, isSaved 
         ]}
       >
         <Image
-          source={{ uri: event.imageUrl }}
+          source={{ uri: event.imageUrl ?? undefined }}
           style={styles.listImage}
           contentFit="cover"
           transition={200}
@@ -160,7 +160,7 @@ export default function EventCard({ event, variant = "compact", onSave, isSaved 
       ]}
     >
       <Image
-        source={{ uri: event.imageUrl }}
+        source={{ uri: event.imageUrl ?? undefined }}
         style={styles.compactImage}
         contentFit="cover"
         transition={200}

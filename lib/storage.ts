@@ -5,13 +5,22 @@ const SAVED_EVENTS_KEY = "culturepass_saved_events";
 const USER_PROFILE_KEY = "culturepass_user_profile";
 
 const defaultProfile: UserProfile = {
+  id: "",
+  username: "guest",
   name: "Guest User",
-  email: "",
+  email: null,
   city: "Sydney",
   state: "NSW",
+  country: null,
+  phone: null,
   cpid: "CP-U-GUEST",
+  referralCode: null,
+  referredBy: null,
   savedEvents: [],
   memberOf: [],
+  roleGlobal: null,
+  website: null,
+  socialLinks: null,
 };
 
 export async function getSavedEventIds(): Promise<string[]> {

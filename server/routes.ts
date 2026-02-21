@@ -186,7 +186,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/events/by-date/:date", async (req: Request, res: Response) => {
     try {
-      const events = await storage.getEventsByDate(req.params.date);
+      const events = await storage.getEventsByDate(String(req.params.date));
       res.json(events);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -195,7 +195,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/events/:id", async (req: Request, res: Response) => {
     try {
-      const event = await storage.getEventById(req.params.id);
+      const event = await storage.getEventById(String(req.params.id));
       if (!event) return res.status(404).json({ error: "Event not found" });
       res.json(event);
     } catch (err: any) {
@@ -214,7 +214,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/events/:id", async (req: Request, res: Response) => {
     try {
-      const event = await storage.updateEvent(req.params.id, req.body);
+      const event = await storage.updateEvent(String(req.params.id), req.body);
       if (!event) return res.status(404).json({ error: "Event not found" });
       res.json(event);
     } catch (err: any) {
@@ -224,7 +224,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.delete("/api/events/:id", async (req: Request, res: Response) => {
     try {
-      const ok = await storage.deleteEvent(req.params.id);
+      const ok = await storage.deleteEvent(String(req.params.id));
       if (!ok) return res.status(404).json({ error: "Event not found" });
       res.json({ ok: true });
     } catch (err: any) {
@@ -244,7 +244,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/organisations/:id", async (req: Request, res: Response) => {
     try {
-      const org = await storage.getOrganisationById(req.params.id);
+      const org = await storage.getOrganisationById(String(req.params.id));
       if (!org) return res.status(404).json({ error: "Organisation not found" });
       res.json(org);
     } catch (err: any) {
@@ -263,7 +263,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/organisations/:id", async (req: Request, res: Response) => {
     try {
-      const org = await storage.updateOrganisation(req.params.id, req.body);
+      const org = await storage.updateOrganisation(String(req.params.id), req.body);
       if (!org) return res.status(404).json({ error: "Organisation not found" });
       res.json(org);
     } catch (err: any) {
@@ -283,7 +283,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/businesses/:id", async (req: Request, res: Response) => {
     try {
-      const biz = await storage.getBusinessById(req.params.id);
+      const biz = await storage.getBusinessById(String(req.params.id));
       if (!biz) return res.status(404).json({ error: "Business not found" });
       res.json(biz);
     } catch (err: any) {
@@ -302,7 +302,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/businesses/:id", async (req: Request, res: Response) => {
     try {
-      const biz = await storage.updateBusiness(req.params.id, req.body);
+      const biz = await storage.updateBusiness(String(req.params.id), req.body);
       if (!biz) return res.status(404).json({ error: "Business not found" });
       res.json(biz);
     } catch (err: any) {
@@ -331,7 +331,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/artists/:id/events", async (req: Request, res: Response) => {
     try {
-      const events = await storage.getEventsByArtist(req.params.id);
+      const events = await storage.getEventsByArtist(String(req.params.id));
       res.json(events);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -340,7 +340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/artists/:id", async (req: Request, res: Response) => {
     try {
-      const artist = await storage.getArtistById(req.params.id);
+      const artist = await storage.getArtistById(String(req.params.id));
       if (!artist) return res.status(404).json({ error: "Artist not found" });
       res.json(artist);
     } catch (err: any) {
@@ -359,7 +359,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/artists/:id", async (req: Request, res: Response) => {
     try {
-      const artist = await storage.updateArtist(req.params.id, req.body);
+      const artist = await storage.updateArtist(String(req.params.id), req.body);
       if (!artist) return res.status(404).json({ error: "Artist not found" });
       res.json(artist);
     } catch (err: any) {
@@ -379,7 +379,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/perks/:id", async (req: Request, res: Response) => {
     try {
-      const perk = await storage.getPerkById(req.params.id);
+      const perk = await storage.getPerkById(String(req.params.id));
       if (!perk) return res.status(404).json({ error: "Perk not found" });
       res.json(perk);
     } catch (err: any) {
@@ -482,7 +482,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── CPID Lookup ──
   app.get("/api/cpid/:cpid", async (req: Request, res: Response) => {
     try {
-      const result = await storage.lookupCPID(req.params.cpid);
+      const result = await storage.lookupCPID(String(req.params.cpid));
       if (!result) return res.status(404).json({ error: "CPID not found" });
       res.json(result);
     } catch (err: any) {
@@ -546,7 +546,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(req.session.userId);
       if (!user || user.roleGlobal !== "admin") return res.status(403).json({ error: "Admin access required" });
       
-      const { type, id } = req.params;
+      const { type, id } = req.params as Record<string, string>;
       let result;
       if (type === "organisation") {
         result = await storage.updateOrganisation(id, { status: "active" });
@@ -570,7 +570,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(req.session.userId);
       if (!user || user.roleGlobal !== "admin") return res.status(403).json({ error: "Admin access required" });
       
-      const { type, id } = req.params;
+      const { type, id } = req.params as Record<string, string>;
       let result;
       if (type === "organisation") {
         result = await storage.updateOrganisation(id, { status: "rejected" });
@@ -594,7 +594,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const user = await storage.getUser(req.session.userId);
       if (!user || user.roleGlobal !== "admin") return res.status(403).json({ error: "Admin access required" });
       
-      const updated = await storage.updateUser(req.params.userId, { roleGlobal: "admin" });
+      const updated = await storage.updateUser(String(req.params.userId), { roleGlobal: "admin" });
       if (!updated) return res.status(404).json({ error: "User not found" });
       const { password: _, ...safeUser } = updated;
       res.json(safeUser);
@@ -796,7 +796,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/venues/:id", async (req: Request, res: Response) => {
     try {
-      const venue = await storage.getVenueById(req.params.id);
+      const venue = await storage.getVenueById(String(req.params.id));
       if (!venue) return res.status(404).json({ error: "Venue not found" });
       res.json(venue);
     } catch (err: any) {
@@ -806,7 +806,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/venues/:id/events", async (req: Request, res: Response) => {
     try {
-      const eventsList = await storage.getEventsByVenue(req.params.id);
+      const eventsList = await storage.getEventsByVenue(String(req.params.id));
       res.json(eventsList);
     } catch (err: any) {
       res.status(500).json({ error: err.message });
@@ -824,7 +824,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.put("/api/venues/:id", requireAuth, async (req: Request, res: Response) => {
     try {
-      const venue = await storage.updateVenue(req.params.id, req.body);
+      const venue = await storage.updateVenue(String(req.params.id), req.body);
       if (!venue) return res.status(404).json({ error: "Venue not found" });
       res.json(venue);
     } catch (err: any) {
@@ -976,7 +976,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/referrals/validate/:code", async (req: Request, res: Response) => {
     try {
-      const user = await storage.getUserByReferralCode(req.params.code);
+      const user = await storage.getUserByReferralCode(String(req.params.code));
       if (!user) return res.json({ valid: false });
       res.json({ valid: true, referrerName: user.name });
     } catch (err: any) {
@@ -987,7 +987,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // ── Wallet Pass Endpoints ──
   app.get("/api/wallet/apple/:userId", async (req: Request, res: Response) => {
     try {
-      const user = await storage.getUser(req.params.userId);
+      const user = await storage.getUser(String(req.params.userId));
       if (!user) return res.status(404).json({ error: "User not found" });
 
       const hasCerts = process.env.APPLE_PASS_TYPE_ID &&
@@ -1069,7 +1069,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/wallet/google/:userId", async (req: Request, res: Response) => {
     try {
-      const user = await storage.getUser(req.params.userId);
+      const user = await storage.getUser(String(req.params.userId));
       if (!user) return res.status(404).json({ error: "User not found" });
 
       const hasConfig = process.env.GOOGLE_WALLET_ISSUER_ID &&

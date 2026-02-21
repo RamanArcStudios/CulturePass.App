@@ -142,7 +142,7 @@ export default function EventDetailScreen() {
         contentContainerStyle={{ paddingBottom: 120 }}
       >
         <View style={styles.imageContainer}>
-          <Image source={{ uri: event.imageUrl }} style={styles.heroImage} contentFit="cover" transition={300} />
+          <Image source={{ uri: event.imageUrl ?? undefined }} style={styles.heroImage} contentFit="cover" transition={300} />
           <LinearGradient
             colors={["rgba(0,0,0,0.4)", "transparent", "rgba(0,0,0,0.6)"]}
             style={StyleSheet.absoluteFill}
